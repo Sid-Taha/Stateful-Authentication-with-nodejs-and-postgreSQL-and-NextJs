@@ -1,9 +1,9 @@
 const db = require("../db/connection")
 const {eq} = require("drizzle-orm")
 const {userTable, userSessions} = require("../model/user.model")
-const {randomBytes, createHmac } = require('node:crypto');
+const bcrypt = require('bcrypt');
 
-
+// -----------------------------------------------  Sign-up 
 exports.signupFunction = async (req, res)=>{
     const {username, email, password} = req.body
 
@@ -15,19 +15,13 @@ exports.signupFunction = async (req, res)=>{
         return res.status(400).json({error: `user with email ${email} already exist`})
     }
 
-    // create a salt (random text)
-    const salt = randomBytes(256).toString('hex')
-    console.log("✅ Salt: ", salt);
-    
-    // convert into algorithm
-    const hashedPassword = createHmac('sha256', salt).update(password).digest('hex');
-    console.log("✅ hashedPassword: ", hashedPassword);
+    // hashing
+    const hashedPassword = await bcrypt.hash(password, 10)
 
     // save into DB
     const result = await db.insert(userTable).values({
         username: username,
         email: email,
-        salt: salt,
         password: hashedPassword
     }).returning({id: userTable.id})
 
@@ -37,39 +31,49 @@ exports.signupFunction = async (req, res)=>{
 
 
 
-
+// -----------------------------------------------  Log-in
 exports.loginFunction = async (req,res)=>{
     const {email, password} =  req.body
 
+    // email checking into database
     const [existingUser] = await db.select().from(userTable).where(eq(userTable.email, email))
-
     if(!existingUser){
         return res.status(400).json({error: `user with this email ${email} does not exist`})
     }
-
-    // salt from DB
-    const dbSalt = existingUser.salt
     
-    // convert into algorithm
-    const newHashedPassword = createHmac('sha256', dbSalt).update(password).digest('hex');
-
-    if(newHashedPassword !== existingUser.password){
+    // password checking from bcrypt
+    const isValidPassword = await bcrypt.compare(password  ,   existingUser.password)
+    if(!isValidPassword){
         return res.status(400).json({error: `incorrect password`})
     } 
 
+    // create expiration date
+    const expireAt = new Date() // current date and time
+    expireAt.setDate(expireAt.getDate() + 7) // update date and time
+
+    // create session for user into database
     const [session] = await db.insert(userSessions).values({
-        userId: existingUser.id
+        userId: existingUser.id,
+        expireAt: expireAt
     }).returning({id: userSessions.id})
 
-    return res.json({status: "welcome to website", data: session})
+    // setting cookie for 7 days
+    res.cookie("sessionId", session.id, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 *1000 // 7 Days 
+    })
+
+    return res.json({status: "welcome to website"})
 }
 
 
 
-
+// -----------------------------------------------  Home
 exports.homeFunction = async (req, res)=>{
     // is user have data in req.user ❌✅
-    const userData = req.user
+    const userData = req.user //null, data
 
     // is user data available ❌✅
     if(!userData){

@@ -12,10 +12,6 @@ router.post("/login", loginFunction)
 // ---------------------- Home
 router.get("/home", sessionCheckMiddleware ,homeFunction)
 
-// ---------------------- Product
-router.get("/home", sessionCheckMiddleware ,productFunction)
-
-
 
 
 module.exports = router

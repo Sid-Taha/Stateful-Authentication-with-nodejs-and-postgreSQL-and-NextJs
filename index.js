@@ -1,11 +1,13 @@
 const express = require('express');
 const userRouter = require("./routes/user.routes")
+const cookieParser = require('cookie-parser')
 
 const app = express();
 const PORT = 3000;
 
 
 app.use(express.json())
+app.use(cookieParser())
 
 app.use("/user", userRouter)
 
