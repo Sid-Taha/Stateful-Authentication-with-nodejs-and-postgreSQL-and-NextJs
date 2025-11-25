@@ -1,3 +1,4 @@
+// controllers\user.controller.js
 const db = require("../db/connection")
 const {eq} = require("drizzle-orm")
 const {userTable, userSessions} = require("../model/user.model")
@@ -50,12 +51,17 @@ exports.loginFunction = async (req,res)=>{
     // create expiration date
     const expireAt = new Date() // current date and time
     expireAt.setDate(expireAt.getDate() + 7) // update date and time
+  
 
     // create session for user into database
     const [session] = await db.insert(userSessions).values({
         userId: existingUser.id,
         expireAt: expireAt
     }).returning({id: userSessions.id})
+
+
+
+
 
     // setting cookie for 7 days
     res.cookie("sessionId", session.id, {
@@ -82,4 +88,22 @@ exports.homeFunction = async (req, res)=>{
 
     // all information from userData (combine table information)
     return res.status(200).json({status: "Here is you data", data: userData})
+}
+
+
+
+
+// -----------------------------------------------  Logout
+exports.logoutFunction = async (req, res)=>{
+    const sessionId = req.cookies.sessionId
+
+    // update session status to false
+    if(sessionId){
+        await db.update(userSessions).set({
+            isActive : false
+        }).where(eq(userSessions.id, sessionId))
+    }
+
+    res.clearCookie("sessionId")
+    return res.status(200).json({status : "logged out !"})
 }
